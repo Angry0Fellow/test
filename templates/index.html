@@ -22,18 +22,18 @@
     </style>
 </head>
 <body>
-    <h2>Product List</h2>
+    <h2>Object List</h2>
     <table>
         <tr>
             <th>ID</th>
+            <th>Serial</th>
             <th>Name</th>
-            <th>Price ($)</th>
         </tr>
-        {% for product in products %}
+        {% for obj in objects %}
         <tr>
-            <td>{{ product['id'] }}</td>
-            <td>{{ product['name'] }}</td>
-            <td>{{ product['price'] }}</td>
+            <td>{{ obj['id'] }}</td>
+            <td>{{ obj['serial'] }}</td>
+            <td>{{ obj['name'] }}</td>
         </tr>
         {% endfor %}
     </table>

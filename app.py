@@ -18,8 +18,11 @@ def get_db_connection():
 def index():
     db_connection = get_db_connection()
     cursor = db_connection.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM products")
-    products = cursor.fetchall()
+
+    # Fetch data from the 'objects' table
+    cursor.execute("SELECT * FROM objects")
+    objects = cursor.fetchall()
+
     cursor.close()
     db_connection.close()
 
