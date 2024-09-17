@@ -15,11 +15,11 @@ services:
       - db_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  web:
-    build: .
-    container_name: invmang_web
+  api:
+    build: ./invmang_api
+    container_name: invmang_api
     ports:
-      - "5000:5000"
+      - "18080:18080"
     depends_on:
       - db
     environment:
@@ -27,8 +27,16 @@ services:
       DB_USER: invuser
       DB_PASSWORD: invpassword
       DB_NAME: invmang
+
+  web:
+    build: ./invmang_web
+    container_name: invmang_web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
     volumes:
-      - .:/app
+      - ./invmang_web:/app  # Optional volume for development
 
 volumes:
   db_data:
