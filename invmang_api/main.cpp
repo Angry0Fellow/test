@@ -107,15 +107,19 @@ int main() {
           stmt->executeQuery("SELECT * FROM objects"));
 
       crow::json::wvalue result;
-      result["objects"] = crow::json::wvalue::list();
+      crow::json::wvalue::list objects_list;
 
+      // Iterate through the database results and construct the JSON list
       while (res->next()) {
         crow::json::wvalue obj;
         obj["id"] = res->getInt("id");
         obj["serial"] = res->getString("serial");
         obj["name"] = res->getString("name");
-        result["objects"].push_back(obj);
+        objects_list.emplace_back(obj); // Add each object to the list
       }
+
+      result["objects"] =
+          std::move(objects_list); // Move the list into the result
 
       delete con;
 
