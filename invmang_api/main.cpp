@@ -50,20 +50,31 @@ int main() {
 
           // Insert into relationships table, if parent_id is provided
           if (params.has("parent_id")) {
-            int parent_id = 0;
+            int parent_id = 0; // Declare parent_id
             auto parent_value = params["parent_id"];
 
-            // Check the type of parent_id
-            if (parent_value.t() == crow::json::type::Integer) {
-              parent_id = parent_value.i();
-            } else if (parent_value.t() == crow::json::type::Double) {
-              parent_id = static_cast<int>(parent_value.d());
+            if (parent_value.t() == crow::json::type::Number) {
+              double num = parent_value.d();
+
+              // Check if num is an integer
+              if (std::floor(num) == num) {
+                parent_id = static_cast<int>(num);
+              } else {
+                if (con) {
+                  con->rollback();
+                  delete con;
+                }
+                return crow::response(400, "parent_id must be an integer");
+              }
             } else {
-              con->rollback();
-              delete con;
+              if (con) {
+                con->rollback();
+                delete con;
+              }
               return crow::response(400, "Invalid parent_id type");
             }
 
+            // Proceed with database operations using parent_id
             // Optionally validate parent_id exists
             std::unique_ptr<sql::PreparedStatement> pstmt_check(
                 con->prepareStatement(
