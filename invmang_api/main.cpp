@@ -104,7 +104,7 @@ int main() {
       crow::json::wvalue::list relationships_list;
 
       // Iterate through the database results and construct the JSON list
-      while (ree->next()) {
+      while (res->next()) {
         crow::json::wvalue obj;
         obj["parent_id"] = res->getInt("parent_id");
         obj["child_id"] = res->getInt("child_id");
