@@ -20,6 +20,11 @@ int main() {
         if (!params)
           return crow::response(400, "Invalid JSON");
 
+        if (!params.has("serial") || !params.has("name")) {
+          return crow::response(400,
+                                "Missing required fields: 'serial' and 'name'");
+        }
+
         std::string serial = params["serial"].s();
         std::string name = params["name"].s();
 
@@ -42,7 +47,9 @@ int main() {
           pstmt->execute();
 
           // Get the ID of the newly inserted object
-          std::unique_ptr<sql::ResultSet> res(pstmt->getGeneratedKeys());
+          std::unique_ptr<sql::Statement> stmt(con->createStatement());
+          std::unique_ptr<sql::ResultSet> res(
+              stmt->executeQuery("SELECT LAST_INSERT_ID()"));
           int new_object_id = 0;
           if (res->next()) {
             new_object_id = res->getInt(1);
