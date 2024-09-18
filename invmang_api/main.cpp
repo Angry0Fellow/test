@@ -13,7 +13,7 @@ const std::string DB_NAME = "invmang";
 int main() {
   crow::SimpleApp app;
 
-  // Route to add an object
+  // Route to add an object with optional parent_id
   CROW_ROUTE(app, "/api/add_object")
       .methods(crow::HTTPMethod::POST)([](const crow::request &req) {
         auto params = crow::json::load(req.body);
@@ -23,26 +23,81 @@ int main() {
         std::string serial = params["serial"].s();
         std::string name = params["name"].s();
 
+        sql::Connection *con = nullptr; // Initialize con to nullptr
+
         try {
           sql::mysql::MySQL_Driver *driver;
-          sql::Connection *con;
 
           driver = sql::mysql::get_mysql_driver_instance();
           con = driver->connect("tcp://" + DB_HOST + ":3306", DB_USER, DB_PASS);
           con->setSchema(DB_NAME);
 
+          con->setAutoCommit(false); // Start transaction
+
+          // Insert into objects table
           std::unique_ptr<sql::PreparedStatement> pstmt(con->prepareStatement(
               "INSERT INTO objects (serial, name) VALUES (?, ?)"));
           pstmt->setString(1, serial);
           pstmt->setString(2, name);
           pstmt->execute();
 
+          // Get the ID of the newly inserted object
+          std::unique_ptr<sql::ResultSet> res(pstmt->getGeneratedKeys());
+          int new_object_id = 0;
+          if (res->next()) {
+            new_object_id = res->getInt(1);
+          }
+
+          // Insert into relationships table, if parent_id is provided
+          if (params.has("parent_id")) {
+            int parent_id = 0;
+            auto parent_value = params["parent_id"];
+
+            // Check the type of parent_id
+            if (parent_value.t() == crow::json::type::Integer) {
+              parent_id = parent_value.i();
+            } else if (parent_value.t() == crow::json::type::Double) {
+              parent_id = static_cast<int>(parent_value.d());
+            } else {
+              con->rollback();
+              delete con;
+              return crow::response(400, "Invalid parent_id type");
+            }
+
+            // Optionally validate parent_id exists
+            std::unique_ptr<sql::PreparedStatement> pstmt_check(
+                con->prepareStatement(
+                    "SELECT COUNT(*) FROM objects WHERE id = ?"));
+            pstmt_check->setInt(1, parent_id);
+            std::unique_ptr<sql::ResultSet> res_check(
+                pstmt_check->executeQuery());
+            res_check->next();
+            if (res_check->getInt(1) == 0) {
+              con->rollback();
+              delete con;
+              return crow::response(400, "Invalid parent_id");
+            }
+
+            std::unique_ptr<sql::PreparedStatement> pstmt_rel(
+                con->prepareStatement("INSERT INTO relationships (parent_id, "
+                                      "child_id) VALUES (?, ?)"));
+            pstmt_rel->setInt(1, parent_id);
+            pstmt_rel->setInt(2, new_object_id);
+            pstmt_rel->execute();
+          }
+
+          con->commit(); // Commit transaction
           delete con;
 
           crow::json::wvalue result;
           result["message"] = "Object added successfully.";
+          result["id"] = new_object_id;
           return crow::response(200, result);
         } catch (sql::SQLException &e) {
+          if (con) {
+            con->rollback(); // Rollback transaction on error
+            delete con;
+          }
           return crow::response(500, std::string("Error adding object: ") +
                                          e.what());
         }
