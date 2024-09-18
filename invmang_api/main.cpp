@@ -48,50 +48,6 @@ int main() {
         }
       });
 
-  // Route to move an object (simplified example)
-  CROW_ROUTE(app, "/api/move_object")
-      .methods(crow::HTTPMethod::POST)([](const crow::request &req) {
-        auto params = crow::json::load(req.body);
-        if (!params)
-          return crow::response(400, "Invalid JSON");
-
-        int parent_id = params["parent_id"].i();
-        int child_id = params["child_id"].i();
-
-        try {
-          sql::mysql::MySQL_Driver *driver;
-          sql::Connection *con;
-
-          driver = sql::mysql::get_mysql_driver_instance();
-          con = driver->connect("tcp://" + DB_HOST + ":3306", DB_USER, DB_PASS);
-          con->setSchema(DB_NAME);
-
-          // Delete existing relationship
-          std::unique_ptr<sql::PreparedStatement> pstmt_delete(
-              con->prepareStatement(
-                  "DELETE FROM relationships WHERE child_id = ?"));
-          pstmt_delete->setInt(1, child_id);
-          pstmt_delete->execute();
-
-          // Insert new relationship
-          std::unique_ptr<sql::PreparedStatement> pstmt_insert(
-              con->prepareStatement("INSERT INTO relationships (parent_id, "
-                                    "child_id) VALUES (?, ?)"));
-          pstmt_insert->setInt(1, parent_id);
-          pstmt_insert->setInt(2, child_id);
-          pstmt_insert->execute();
-
-          delete con;
-
-          crow::json::wvalue result;
-          result["message"] = "Object moved successfully.";
-          return crow::response(200, result);
-        } catch (sql::SQLException &e) {
-          return crow::response(500, std::string("Error moving object: ") +
-                                         e.what());
-        }
-      });
-
   // Route to get all objects
   CROW_ROUTE(app, "/api/objects").methods(crow::HTTPMethod::GET)([]() {
     try {
@@ -127,6 +83,44 @@ int main() {
     } catch (sql::SQLException &e) {
       return crow::response(500,
                             std::string("Error fetching objects: ") + e.what());
+    }
+  });
+
+  // Route to get all relationships
+  CROW_ROUTE(app, "/api/relationships").methods(crow::HTTPMethod::GET)([]() {
+    try {
+      sql::mysql::MySQL_Driver *driver;
+      sql::Connection *con;
+
+      driver = sql::mysql::get_mysql_driver_instance();
+      con = driver->connect("tcp://" + DB_HOST + ":3306", DB_USER, DB_PASS);
+      con->setSchema(DB_NAME);
+
+      std::unique_ptr<sql::Statement> stmt(con->createStatement());
+      std::unique_ptr<sql::ResultSet> res(
+          stmt->executeQuery("SELECT * FROM relationships"));
+
+      crow::json::wvalue result;
+      crow::json::wvalue::list relationships_list;
+
+      // Iterate through the database results and construct the JSON list
+      while (res->next()) {
+        crow::json::wvalue obj;
+        obj["id"] = res->getInt("id");
+        obj["serial"] = res->getString("serial");
+        obj["name"] = res->getString("name");
+        relationships_list.emplace_back(obj); // Add each object to the list
+      }
+
+      result["relationships"] =
+          std::move(relationships_list); // Move the list into the result
+
+      delete con;
+
+      return crow::response(200, result);
+    } catch (sql::SQLException &e) {
+      return crow::response(500, std::string("Error fetching relationships: ") +
+                                     e.what());
     }
   });
 
